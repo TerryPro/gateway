@@ -87,13 +87,13 @@ impl AppConfig {
             let root =
                 toml::from_str::<UnifiedRootConfig>(&s).with_context(|| format!("parse {}", path))?;
             let cfg = root
-                .tsdbd
-                .ok_or_else(|| anyhow::anyhow!("missing [tsdbd] section in {}", path))?;
+                .tdb
+                .ok_or_else(|| anyhow::anyhow!("missing [tdb] section in {}", path))?;
             return Ok(cfg);
         }
         let cfg = Self::default();
         let text = toml::to_string_pretty(&UnifiedRootConfig {
-            tsdbd: Some(cfg.clone()),
+            tdb: Some(cfg.clone()),
         })
         .context("serialize default config")?;
         std::fs::write(path, text).with_context(|| format!("write {}", path))?;
@@ -101,10 +101,10 @@ impl AppConfig {
     }
 }
 
-/// 统一配置根结构：在 `config.toml` 下通过 `[tsdbd]` 子段承载服务配置。
+/// 统一配置根结构：在 `config.toml` 下通过 `[tdb]` 子段承载服务配置。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct UnifiedRootConfig {
-    tsdbd: Option<AppConfig>,
+    tdb: Option<AppConfig>,
 }
 
 impl Default for AppConfig {
@@ -114,7 +114,7 @@ impl Default for AppConfig {
             mqtt: MqttConfig {
                 host: "127.0.0.1".to_string(),
                 port: 1883,
-                client_id: "tsdbd-dev".to_string(),
+                client_id: "tdb-dev".to_string(),
                 topic: "gw/+/telemetry".to_string(),
                 qos: 1,
             },

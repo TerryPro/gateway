@@ -25,7 +25,7 @@ pub async fn run(config_path: String, test_file: Option<String>) -> anyhow::Resu
     
     let cfg = AppConfig::load_or_create_default(&config_path)
         .with_context(|| format!("load config failed: {}", config_path))?;
-    info!("tsdbd server start with root={}", cfg.storage.root);
+    info!("tdb server start with root={}", cfg.storage.root);
 
     let wal = wal::writer::WalWriter::open(&cfg.wal)?;
     

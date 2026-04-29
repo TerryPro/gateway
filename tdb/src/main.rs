@@ -11,9 +11,9 @@ mod wal;
 
 use clap::{Parser, Subcommand};
 
-/// tsdbd - EdgeTSDB service daemon
+/// tdb - EdgeTSDB service daemon
 #[derive(Debug, Parser)]
-#[command(name = "tsdbd", version, about = "EdgeTSDB service daemon")]
+#[command(name = "tdb", version, about = "EdgeTSDB service daemon")]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -21,7 +21,7 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Commands {
-    /// Start the tsdbd server
+    /// Start the tdb server
     Server {
         /// 配置文件路径
         #[arg(short, long, default_value = "config.toml")]
