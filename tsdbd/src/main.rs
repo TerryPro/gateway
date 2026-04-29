@@ -213,6 +213,36 @@ enum Commands {
         #[arg(long, default_value_t = 3)]
         warmup: usize,
     },
+
+    /// Rebuild the time-series index database from manifest files
+    Reindex {
+        #[arg(short = 'r', long, default_value = "data/store")]
+        root: String,
+
+        #[arg(short = 'd', long = "device-id", visible_alias = "device")]
+        device_id: String,
+
+        #[arg(short = 'f', long = "from", requires = "to_ts")]
+        from_ts: Option<u64>,
+
+        #[arg(short = 't', long = "to", requires = "from_ts")]
+        to_ts: Option<u64>,
+
+        #[arg(short = 'D', long = "day")]
+        day: Option<String>,
+
+        #[arg(short = 'T', long = "today", default_value_t = false)]
+        today: bool,
+
+        #[arg(short = 'l', long = "last")]
+        last: Option<String>,
+
+        #[arg(short = 'a', long = "all", default_value_t = false)]
+        all: bool,
+
+        #[arg(long, default_value_t = false)]
+        backup: bool,
+    },
 }
 
 #[tokio::main]
@@ -354,6 +384,29 @@ async fn main() -> anyhow::Result<()> {
                 warmup,
             })
             .await
+        }
+        Commands::Reindex {
+            root,
+            device_id,
+            from_ts,
+            to_ts,
+            day,
+            today,
+            last,
+            all,
+            backup,
+        } => {
+            cli::reindex::run(cli::reindex::ReindexArgs {
+                root,
+                device_id,
+                from_ts,
+                to_ts,
+                day,
+                today,
+                last,
+                all,
+                backup,
+            })
         }
     }
 }

@@ -23,6 +23,7 @@ glob = "0.3"
 arrow = "58"
 arrow-array = "58"
 reqwest = { version = "0.12", features = ["json"] }
+redb = "2"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = ["Win32_System_RestartManager"] }

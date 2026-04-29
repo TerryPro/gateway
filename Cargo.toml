@@ -6,6 +6,6 @@ members = [
     "dev",
     "cli",
     "arv",
-    "tsd", "tst", "tsdbd",
+    "tst", "tsdbd",
 ]
 resolver = "2"
