@@ -1,0 +1,25 @@
+control_addr = "0.0.0.0:7003"
+device_config_path = "dev.toml"
+log_level = "info"
+log_file_path = "logs/broker.log"
+rumqttd_config_path = "rumqttd.toml"
+
+archive_enabled = true
+archive_root = "data/raw"
+archive_rotate_mode = "time"
+archive_rotate_size_mb = 64
+archive_queue_capacity = 10000
+archive_flush_interval_ms = 1000
+
+mqtt_enabled = true
+mqtt_host = "127.0.0.1"
+mqtt_port = 18830
+mqtt_client_id = "broker-bridge"
+mqtt_topic_prefix = "gw"
+mqtt_queue_capacity = 10000
+mqtt_qos = 1
+mqtt_cli_offline_grace_secs = 30
+mqtt_enable_device_telemetry = true
+mqtt_enable_param_telemetry = false
+mqtt_trace_topics = true
+mqtt_trace_payload_preview_bytes = 160

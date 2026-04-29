@@ -1,0 +1,32 @@
+# Rust build artifacts
+/target/
+**/target/
+Cargo.lock
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Output data
+out/
+data/
+dev/
+
+# Local config with secrets
+*.local.toml
+config.toml
+
+# Binary tools
+tools/*.exe
+tools/*.zip
+tools/rmqtt/

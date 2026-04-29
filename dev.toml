@@ -1,0 +1,17 @@
+[[devices]]
+id = "dev001"
+ip = "127.0.0.1"
+port = 7101
+telemetry_interval_ms = 500
+
+[[devices]]
+id = "dev002"
+ip = "127.0.0.1"
+port = 7102
+telemetry_interval_ms = 800
+
+[[devices]]
+id = "dev003"
+ip = "127.0.0.1"
+port = 7103
+telemetry_interval_ms = 1200

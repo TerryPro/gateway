@@ -1,0 +1,28 @@
+[package]
+name = "tsdbd"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1"
+axum = { version = "0.8", features = ["json"] }
+chrono = { version = "0.4", features = ["clock", "serde"] }
+clap = { version = "4", features = ["derive"] }
+duckdb = { version = "1.2.2", features = ["bundled", "vtab-arrow"] }
+rumqttc = "0.24"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+toml = "0.8"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+parking_lot = "0.12"
+common = { path = "../common" }
+tempfile = "3"
+glob = "0.3"
+arrow = "58"
+arrow-array = "58"
+reqwest = { version = "0.12", features = ["json"] }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = ["Win32_System_RestartManager"] }

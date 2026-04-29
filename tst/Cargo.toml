@@ -1,0 +1,17 @@
+[package]
+name = "tst"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1"
+arrow = "56"
+chrono = { version = "0.4", features = ["clock"] }
+clap = { version = "4", features = ["derive"] }
+common = { path = "../common" }
+parquet = { version = "56", features = ["arrow", "zstd"] }
+redb = "2"
+rand = "0.8"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"

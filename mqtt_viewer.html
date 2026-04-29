@@ -1,0 +1,414 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GW MQTT 控制台</title>
+  <style>
+    :root {
+      --bg: #0b1220;
+      --card: #121a2b;
+      --card-border: #23304b;
+      --text: #dce8ff;
+      --muted: #93a4c7;
+      --ok: #2bb673;
+      --bad: #ff5c7a;
+      --accent: #4f8cff;
+      --log-bg: #0a101d;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Arial, sans-serif;
+      background: linear-gradient(180deg, #0b1220 0%, #0a1326 100%);
+      color: var(--text);
+      padding: 18px;
+    }
+    h1 {
+      margin: 0 0 14px 0;
+      font-size: 20px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    .layout { display: grid; gap: 12px; }
+    .panel {
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      padding: 12px;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+    }
+    .panel-title {
+      margin: 0 0 10px 0;
+      font-size: 14px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+    }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }
+    .row:last-child { margin-bottom: 0; }
+    label { font-size: 12px; color: var(--muted); }
+    input, button {
+      border-radius: 8px;
+      border: 1px solid #2f3f63;
+      background: #0f1730;
+      color: var(--text);
+      padding: 8px 10px;
+      font-size: 13px;
+    }
+    input { min-width: 220px; }
+    button { cursor: pointer; transition: 0.15s ease; }
+    button:hover { border-color: var(--accent); transform: translateY(-1px); }
+    .btn-primary { background: #1744a2; border-color: #2f66da; }
+    .btn-danger { background: #5e1d2b; border-color: #8d2e42; }
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      border: 1px solid #2f3f63;
+      color: var(--muted);
+    }
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--bad);
+    }
+    .connected .status-dot { background: var(--ok); }
+    .connected { color: #9be8c5; border-color: #2b6f52; }
+    .terminal-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(260px, 1fr));
+      gap: 12px;
+    }
+    .terminal {
+      height: 340px;
+      overflow: auto;
+      background: var(--log-bg);
+      border: 1px solid #203255;
+      border-radius: 8px;
+      padding: 10px;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 12px;
+      line-height: 1.45;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    #log { color: #d5f0ff; }
+    #resp { color: #ffe6b3; }
+    #data { color: #b8e3ff; }
+    @media (max-width: 1100px) {
+      .terminal-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <h1>GW -> RMQTT Web 控制台</h1>
+  <div class="layout">
+    <div class="panel">
+      <div class="panel-title">连接配置</div>
+      <div class="row">
+        <label for="wsUrl">WS 地址</label>
+        <input id="wsUrl" value="ws://127.0.0.1:8080/" />
+        <label for="topic">实时 Topic</label>
+        <input id="topic" value="gw/+/telemetry" />
+        <label for="clientId">客户端 ID</label>
+        <input id="clientId" value="webclient1" />
+      </div>
+      <div class="row">
+        <button id="btnConnect" class="btn-primary">仅连接</button>
+        <button id="btnSubRealtime">订阅实时</button>
+        <button id="btnUnsubRealtime">取消实时订阅</button>
+        <button id="btnPauseRealtime">暂停实时显示</button>
+        <button id="btnDisconnect" class="btn-danger">断开</button>
+        <button id="btnClear">清空面板</button>
+        <span id="status" class="status-pill">
+          <span class="status-dot"></span>
+          <span id="statusText">未连接</span>
+        </span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">控制命令（MQTT）</div>
+      <div class="row">
+        <button id="btnPing">PING</button>
+        <button id="btnList">LIST</button>
+        <button id="btnStatus">STATUS dev001</button>
+        <button id="btnConnectDev1">CONNECT dev001</button>
+        <button id="btnKickDev1">KICK dev001</button>
+      </div>
+      <div class="row">
+        <input id="cmdJson" value='{"cmd":"SEND","args":{"device_id":"dev001","command_code":"A00001","timeout_ms":3000}}' />
+        <button id="btnSendJson" class="btn-primary">发送 JSON 命令</button>
+      </div>
+    </div>
+
+    <div class="terminal-grid">
+      <div class="panel">
+        <div class="panel-title">连接日志</div>
+        <div id="log" class="terminal"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-title">命令应答</div>
+        <div id="resp" class="terminal"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-title">实时数据</div>
+        <div id="data" class="terminal"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <script>
+    /** 全局 MQTT 客户端实例，连接后持有，断开时释放。 */
+    let client = null;
+    /** 实时主题当前订阅状态，用于避免重复订阅或错误取消。 */
+    let realtimeSubscribed = false;
+    /** 是否暂停实时数据显示，仅影响前端渲染。 */
+    let realtimePaused = false;
+
+    /** 向目标面板追加文本并保持滚动到底部。 */
+    function appendLine(targetId, text) {
+      const box = document.getElementById(targetId);
+      box.textContent += `${text}\n`;
+      box.scrollTop = box.scrollHeight;
+    }
+
+    /** 向连接日志追加文本。 */
+    function appendLog(text) {
+      const ts = new Date().toLocaleTimeString();
+      appendLine("log", `[${ts}] ${text}`);
+    }
+
+    /** 向命令应答面板追加文本。 */
+    function appendResp(text) {
+      appendLine("resp", text);
+    }
+
+    /** 向实时数据面板追加文本。 */
+    function appendData(text) {
+      appendLine("data", text);
+    }
+
+    /** 将 payload 尝试格式化为可读文本，JSON 会进行缩进。 */
+    function formatPayloadText(payloadText) {
+      try {
+        return JSON.stringify(JSON.parse(payloadText), null, 2);
+      } catch (_) {
+        return payloadText;
+      }
+    }
+
+    /** 根据 payload 内容推断消息类型，用于快速观察流量结构。 */
+    function detectMessageType(payloadText) {
+      try {
+        const parsed = JSON.parse(payloadText);
+        if (parsed && Array.isArray(parsed.points)) return "telemetry";
+        if (parsed && typeof parsed === "object") return "json";
+        return typeof parsed;
+      } catch (_) {
+        return "text/binary";
+      }
+    }
+
+    /** 更新页面连接状态文字与颜色。 */
+    function setStatus(connected) {
+      const status = document.getElementById("status");
+      const text = document.getElementById("statusText");
+      if (connected) {
+        status.classList.add("connected");
+        text.textContent = "已连接";
+      } else {
+        status.classList.remove("connected");
+        text.textContent = "未连接";
+      }
+    }
+
+    /** 断开已有连接并释放客户端对象。 */
+    function disconnectClient() {
+      if (client) {
+        client.end(true);
+        client = null;
+      }
+      realtimeSubscribed = false;
+      setStatus(false);
+      appendLog("已断开连接");
+    }
+
+    /** 将消息按主题类型路由到“命令应答”或“实时数据”面板。 */
+    function routeMessage(topicName, payload) {
+      const raw = payload.toString();
+      const msgType = detectMessageType(raw);
+      const bytes = payload.byteLength ?? raw.length;
+      const summary = `Topic=${topicName} | type=${msgType} | bytes=${bytes}`;
+      if (topicName.startsWith("gw/resp/")) {
+        const ts = new Date().toLocaleTimeString();
+        const formatted = formatPayloadText(raw);
+        appendResp(`[${ts}] ${summary}\n${formatted}\n----------------------------------------`);
+        return;
+      }
+      if (realtimePaused) {
+        return;
+      }
+      appendData(summary);
+    }
+
+    /** 建立 MQTT over WebSocket 连接，仅订阅命令响应主题。 */
+    function connectOnly() {
+      const wsUrl = document.getElementById("wsUrl").value.trim();
+      const clientId = document.getElementById("clientId").value.trim();
+      if (!wsUrl || !clientId) {
+        appendLog("WS 地址、客户端ID 不能为空");
+        return;
+      }
+      disconnectClient();
+
+      client = mqtt.connect(wsUrl, {
+        clientId: "web-" + clientId + "-" + Math.random().toString(16).slice(2),
+        clean: true,
+        keepalive: 20,
+        reschedulePings: true,
+        reconnectPeriod: 2000,
+        connectTimeout: 5000
+      });
+
+      client.on("connect", () => {
+        setStatus(true);
+        appendLog("MQTT 连接成功");
+        const respTopic = `gw/resp/${clientId}`;
+        client.subscribe(respTopic, { qos: 1 }, (err) => {
+          if (err) {
+            appendLog("应答主题订阅失败: " + err.message);
+            return;
+          }
+          appendLog("应答主题订阅成功: " + respTopic);
+        });
+      });
+
+      client.on("reconnect", () => appendLog("正在重连..."));
+      client.on("offline", () => appendLog("连接离线(offline)"));
+      client.on("end", () => appendLog("连接结束(end)"));
+      client.on("close", () => {
+        setStatus(false);
+        appendLog("连接关闭(close)");
+      });
+      client.on("error", (err) => appendLog("连接错误: " + err.message));
+      client.on("message", (topicName, payload) => routeMessage(topicName, payload));
+    }
+
+    /** 订阅实时数据主题，默认使用 QoS 0 以降低高流量场景下断连风险。 */
+    function subscribeRealtime() {
+      if (!client) {
+        appendLog("请先建立连接");
+        return;
+      }
+      if (realtimeSubscribed) {
+        appendLog("实时主题已订阅");
+        return;
+      }
+      const topic = document.getElementById("topic").value.trim();
+      if (!topic) {
+        appendLog("实时 Topic 不能为空");
+        return;
+      }
+      client.subscribe(topic, { qos: 0 }, (err) => {
+        if (err) {
+          appendLog("实时主题订阅失败: " + err.message);
+          return;
+        }
+        realtimeSubscribed = true;
+        appendLog("实时主题订阅成功(QoS0): " + topic);
+      });
+    }
+
+    /** 取消实时数据主题订阅，便于在高流量时快速止血。 */
+    function unsubscribeRealtime() {
+      if (!client) {
+        appendLog("请先建立连接");
+        return;
+      }
+      if (!realtimeSubscribed) {
+        appendLog("实时主题当前未订阅");
+        return;
+      }
+      const topic = document.getElementById("topic").value.trim();
+      client.unsubscribe(topic, (err) => {
+        if (err) {
+          appendLog("实时主题取消订阅失败: " + err.message);
+          return;
+        }
+        realtimeSubscribed = false;
+        appendLog("实时主题已取消订阅: " + topic);
+      });
+    }
+
+    /** 切换实时数据显示状态，暂停后仍保持订阅但不渲染消息。 */
+    function toggleRealtimePause() {
+      realtimePaused = !realtimePaused;
+      const btn = document.getElementById("btnPauseRealtime");
+      btn.textContent = realtimePaused ? "恢复实时显示" : "暂停实时显示";
+      appendLog(realtimePaused ? "已暂停实时数据显示" : "已恢复实时数据显示");
+    }
+
+    /** 发布一条控制命令到 gw/cmd/{clientId}，由 gw 执行后回发响应。 */
+    function publishCommand(command) {
+      if (!client) {
+        appendLog("请先连接 MQTT");
+        return;
+      }
+      const clientId = document.getElementById("clientId").value.trim();
+      const topic = `gw/cmd/${clientId}`;
+      const reqId = "req-" + Date.now() + "-" + Math.floor(Math.random() * 1000);
+      const payload = JSON.stringify({ req_id: reqId, client_id: clientId, ...command });
+      client.publish(topic, payload, { qos: 1 }, (err) => {
+        if (err) {
+          appendLog("命令发送失败: " + err.message);
+          return;
+        }
+        appendLog(`命令已发送: ${topic} req_id=${reqId}`);
+      });
+    }
+
+    /** 绑定页面交互事件，连接按钮、命令按钮与清理按钮。 */
+    function bindEvents() {
+      document.getElementById("btnConnect").addEventListener("click", connectOnly);
+      document.getElementById("btnSubRealtime").addEventListener("click", subscribeRealtime);
+      document.getElementById("btnUnsubRealtime").addEventListener("click", unsubscribeRealtime);
+      document.getElementById("btnPauseRealtime").addEventListener("click", toggleRealtimePause);
+      document.getElementById("btnDisconnect").addEventListener("click", disconnectClient);
+      document.getElementById("btnClear").addEventListener("click", () => {
+        document.getElementById("log").textContent = "";
+        document.getElementById("resp").textContent = "";
+        document.getElementById("data").textContent = "";
+      });
+      document.getElementById("btnPing").addEventListener("click", () => publishCommand({ cmd: "PING", args: {} }));
+      document.getElementById("btnList").addEventListener("click", () => publishCommand({ cmd: "LIST", args: {} }));
+      document.getElementById("btnStatus").addEventListener("click", () => {
+        publishCommand({ cmd: "STATUS", args: { device_id: "dev001" } });
+      });
+      document.getElementById("btnConnectDev1").addEventListener("click", () => {
+        publishCommand({ cmd: "CONNECT", args: { sim_addr: "127.0.0.1:7101" } });
+      });
+      document.getElementById("btnKickDev1").addEventListener("click", () => {
+        publishCommand({ cmd: "KICK", args: { device_id: "dev001" } });
+      });
+      document.getElementById("btnSendJson").addEventListener("click", () => {
+        const raw = document.getElementById("cmdJson").value.trim();
+        try {
+          const parsed = JSON.parse(raw);
+          publishCommand(parsed);
+        } catch (e) {
+          appendLog("命令JSON格式错误: " + e.message);
+        }
+      });
+    }
+
+    bindEvents();
+  </script>
+</body>
+</html>
