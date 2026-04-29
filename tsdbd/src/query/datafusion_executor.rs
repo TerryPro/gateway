@@ -73,6 +73,7 @@ impl QueryExecutor {
         }
 
         let table_name = format!("t_{}", device_id.replace("-", "_"));
+        self.ctx.deregister_table(&table_name).ok();
         let mut first = true;
         for path in &parquet_paths {
             let path_str = path.to_string_lossy().replace("\\", "/");
@@ -145,6 +146,7 @@ impl QueryExecutor {
             let parquet_paths = self.build_parquet_paths(device);
             if !parquet_paths.is_empty() {
                 let table_name = format!("t_{}", device.replace("-", "_"));
+                self.ctx.deregister_table(&table_name).ok();
                 let mut first = true;
                 for path in &parquet_paths {
                     let path_str = path.to_string_lossy().replace("\\", "/");
@@ -203,6 +205,7 @@ impl QueryExecutor {
             let parquet_paths = self.build_parquet_paths(device);
             if !parquet_paths.is_empty() {
                 let table_name = format!("t_{}", device.replace("-", "_"));
+                self.ctx.deregister_table(&table_name).ok();
                 let mut first = true;
                 for path in &parquet_paths {
                     let path_str = path.to_string_lossy().replace("\\", "/");

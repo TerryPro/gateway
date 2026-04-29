@@ -271,6 +271,7 @@ async fn main() -> anyhow::Result<()> {
                 last,
                 all,
             })
+            .await
         }
         Commands::Export {
             root,
@@ -352,6 +353,7 @@ async fn main() -> anyhow::Result<()> {
                 iterations,
                 warmup,
             })
+            .await
         }
     }
 }

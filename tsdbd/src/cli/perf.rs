@@ -45,7 +45,7 @@ pub struct PerfArgs {
     pub warmup: usize,
 }
 
-pub fn run(args: PerfArgs) -> anyhow::Result<()> {
+pub async fn run(args: PerfArgs) -> anyhow::Result<()> {
     if args.iterations == 0 {
         anyhow::bail!("--iterations must be > 0");
     }
@@ -64,14 +64,14 @@ pub fn run(args: PerfArgs) -> anyhow::Result<()> {
     let executor = DfExecutor::new(args.root.clone());
 
     for _ in 0..args.warmup {
-        let _ = executor.query(&args.device_id, from_ts, to_ts, &args.params);
+        let _ = executor.query_async(&args.device_id, from_ts, to_ts, &args.params).await;
     }
 
     let mut costs_ms = Vec::with_capacity(args.iterations);
     let mut matched = 0usize;
     for _ in 0..args.iterations {
         let begin = Instant::now();
-        matched = executor.query(&args.device_id, from_ts, to_ts, &args.params)?.len();
+        matched = executor.query_async(&args.device_id, from_ts, to_ts, &args.params).await?.len();
         let elapsed = begin.elapsed();
         costs_ms.push(elapsed.as_secs_f64() * 1000.0);
     }

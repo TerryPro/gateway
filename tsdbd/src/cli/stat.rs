@@ -2,7 +2,6 @@ use std::path::PathBuf;
 use anyhow::Context;
 use chrono::{Datelike, Local, NaiveDate, TimeZone};
 use clap::Args;
-use std::sync::Arc;
 
 use crate::query::datafusion_executor::QueryExecutor as DfExecutor;
 
@@ -33,62 +32,38 @@ pub struct StatArgs {
     pub all: bool,
 }
 
-#[derive(Debug, Default)]
-struct Stats {
-    files: usize,
-    rows: u64,
-    points: u64,
-    min_ts: Option<u64>,
-    max_ts: Option<u64>,
-}
-
-pub fn run(args: StatArgs) -> anyhow::Result<()> {
+pub async fn run(args: StatArgs) -> anyhow::Result<()> {
     let (from_ts, to_ts) = resolve_time_range(&args)?;
     let root = PathBuf::from(&args.root);
     let device_dir = root.join(&args.device_id);
 
     let hour_dirs = collect_hour_dirs(&device_dir, from_ts, to_ts)?;
-    let mut stats = Stats {
-        files: 0,
-        rows: 0,
-        points: 0,
-        min_ts: None,
-        max_ts: None,
-    };
-
-    let executor = DfExecutor::new(args.root.clone());
-
+    let mut files_count = 0usize;
     for hour_dir in &hour_dirs {
         let parquet_files = collect_parquet_files(hour_dir)?;
-        stats.files += parquet_files.len();
-
-        for file in &parquet_files {
-            match read_parquet_stats(&executor, file, from_ts, to_ts) {
-                Ok(file_stats) => {
-                    stats.rows += file_stats.rows;
-                    stats.points += file_stats.points;
-                    stats.min_ts = Some(stats.min_ts.map_or(file_stats.min_ts, |v| v.min(file_stats.min_ts)));
-                    stats.max_ts = Some(stats.max_ts.map_or(file_stats.max_ts, |v| v.max(file_stats.max_ts)));
-                }
-                Err(e) => {
-                    eprintln!("warn: skip unreadable file {}: {}", file.display(), e);
-                }
-            }
-        }
+        files_count += parquet_files.len();
     }
+
+    let executor = DfExecutor::new(args.root.clone());
+    let points = executor.query_async(
+        &args.device_id,
+        from_ts,
+        to_ts,
+        &[],
+    ).await?;
+
+    let rows = points.len() as u64;
+    let min_ts = points.iter().map(|p| p.ts).min();
+    let max_ts = points.iter().map(|p| p.ts).max();
 
     println!("root: {}", args.root);
     println!("device_id: {}", args.device_id);
-    println!("files: {}", stats.files);
-    println!("rows: {}", stats.rows);
-    println!("points: {}", stats.points);
-    println!("min_ts: {}", opt_u64(stats.min_ts));
-    println!("max_ts: {}", opt_u64(stats.max_ts));
+    println!("files: {}", files_count);
+    println!("rows: {}", rows);
+    println!("points: {}", rows);
+    println!("min_ts: {}", min_ts.map_or(String::new(), |v| v.to_string()));
+    println!("max_ts: {}", max_ts.map_or(String::new(), |v| v.to_string()));
     Ok(())
-}
-
-fn opt_u64(v: Option<u64>) -> String {
-    v.map(|v| v.to_string()).unwrap_or_default()
 }
 
 fn resolve_time_range(args: &StatArgs) -> anyhow::Result<(u64, u64)> {
@@ -220,31 +195,4 @@ fn collect_parquet_files(hour_dir: &PathBuf) -> anyhow::Result<Vec<PathBuf>> {
         }
     }
     Ok(out)
-}
-
-struct FileStats {
-    rows: u64,
-    points: u64,
-    min_ts: u64,
-    max_ts: u64,
-}
-
-fn read_parquet_stats(executor: &DfExecutor, path: &PathBuf, from_ts: u64, to_ts: u64) -> anyhow::Result<FileStats> {
-    let points = executor.query(
-        path.parent().unwrap().file_name().unwrap().to_str().unwrap(),
-        from_ts,
-        to_ts,
-        &[],
-    )?;
-
-    let rows = points.len() as u64;
-    let min_ts = points.iter().map(|p| p.ts).min().unwrap_or(0);
-    let max_ts = points.iter().map(|p| p.ts).max().unwrap_or(0);
-
-    Ok(FileStats {
-        rows,
-        points: rows,
-        min_ts,
-        max_ts,
-    })
 }
