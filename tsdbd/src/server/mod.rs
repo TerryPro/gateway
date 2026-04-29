@@ -39,14 +39,14 @@ pub async fn run(config_path: String, test_file: Option<String>) -> anyhow::Resu
         import_test_data(file, &cfg, &wal, &mem)?;
     }
     
-    // DuckDB 查询引擎
-    let duckdb_engine = query::duckdb_executor::QueryExecutor::new(cfg.storage.root.clone());
+    // DataFusion 查询引擎
+    let df_engine = query::datafusion_executor::QueryExecutor::new(cfg.storage.root.clone());
     
     // 查询执行器
     let query_engine = query::executor::QueryExecutor::new(
         cfg.storage.root.clone(), 
         mem.clone(),
-        duckdb_engine,
+        df_engine,
     );
     
     let shared = Arc::new(RuntimeState { 

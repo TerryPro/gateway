@@ -1,12 +1,10 @@
-use std::collections::HashSet;
-use std::fs::File;
 use std::path::PathBuf;
-use std::time::Instant;
 use anyhow::Context;
 use chrono::{Datelike, Local, NaiveDate, TimeZone};
 use clap::Args;
-use duckdb::Connection;
-use crate::model::DataPoint;
+use std::sync::Arc;
+
+use crate::query::datafusion_executor::QueryExecutor as DfExecutor;
 
 #[derive(Debug, Clone, Args)]
 pub struct StatArgs {
@@ -35,13 +33,13 @@ pub struct StatArgs {
     pub all: bool,
 }
 
-#[derive(Debug, Clone)]
-pub struct Stats {
-    pub files: usize,
-    pub rows: usize,
-    pub points: usize,
-    pub min_ts: Option<u64>,
-    pub max_ts: Option<u64>,
+#[derive(Debug, Default)]
+struct Stats {
+    files: usize,
+    rows: u64,
+    points: u64,
+    min_ts: Option<u64>,
+    max_ts: Option<u64>,
 }
 
 pub fn run(args: StatArgs) -> anyhow::Result<()> {
@@ -58,12 +56,14 @@ pub fn run(args: StatArgs) -> anyhow::Result<()> {
         max_ts: None,
     };
 
+    let executor = DfExecutor::new(args.root.clone());
+
     for hour_dir in &hour_dirs {
-        let parquet_files = collect_parquet_files(hour_dir, from_ts, to_ts)?;
+        let parquet_files = collect_parquet_files(hour_dir)?;
         stats.files += parquet_files.len();
 
         for file in &parquet_files {
-            match read_parquet_stats(file, from_ts, to_ts) {
+            match read_parquet_stats(&executor, file, from_ts, to_ts) {
                 Ok(file_stats) => {
                     stats.rows += file_stats.rows;
                     stats.points += file_stats.points;
@@ -85,6 +85,10 @@ pub fn run(args: StatArgs) -> anyhow::Result<()> {
     println!("min_ts: {}", opt_u64(stats.min_ts));
     println!("max_ts: {}", opt_u64(stats.max_ts));
     Ok(())
+}
+
+fn opt_u64(v: Option<u64>) -> String {
+    v.map(|v| v.to_string()).unwrap_or_default()
 }
 
 fn resolve_time_range(args: &StatArgs) -> anyhow::Result<(u64, u64)> {
@@ -149,11 +153,6 @@ fn now_ts() -> u64 {
         .unwrap_or(0)
 }
 
-fn opt_u64(v: Option<u64>) -> String {
-    v.map(|v| v.to_string())
-        .unwrap_or_else(|| "null".to_string())
-}
-
 fn collect_hour_dirs(device_dir: &PathBuf, from_ts: u64, to_ts: u64) -> anyhow::Result<Vec<PathBuf>> {
     if from_ts > to_ts {
         return Ok(Vec::new());
@@ -209,47 +208,43 @@ fn collect_hour_dirs(device_dir: &PathBuf, from_ts: u64, to_ts: u64) -> anyhow::
     Ok(out)
 }
 
-fn collect_parquet_files(hour_dir: &PathBuf, from_ts: u64, to_ts: u64) -> anyhow::Result<Vec<PathBuf>> {
+fn collect_parquet_files(hour_dir: &PathBuf) -> anyhow::Result<Vec<PathBuf>> {
     let mut out = Vec::new();
     if !hour_dir.exists() {
         return Ok(out);
     }
     for entry in std::fs::read_dir(hour_dir)?.flatten() {
         let path = entry.path();
-        if path.extension().and_then(|s| s.to_str()) != Some("parquet") {
-            continue;
+        if path.extension().and_then(|x| x.to_str()) == Some("parquet") {
+            out.push(path);
         }
-        out.push(path);
     }
     Ok(out)
 }
 
 struct FileStats {
-    rows: usize,
-    points: usize,
+    rows: u64,
+    points: u64,
     min_ts: u64,
     max_ts: u64,
 }
 
-fn read_parquet_stats(path: &PathBuf, from_ts: u64, to_ts: u64) -> anyhow::Result<FileStats> {
-    let conn = Connection::open_in_memory()?;
-    let sql = format!(
-        "SELECT COUNT(*) as rows, MIN(ts) as min_ts, MAX(ts) as max_ts FROM read_parquet('{}', hive_partitioning=1) WHERE ts >= {} AND ts <= {}",
-        path.display().to_string().replace("\\", "/"),
+fn read_parquet_stats(executor: &DfExecutor, path: &PathBuf, from_ts: u64, to_ts: u64) -> anyhow::Result<FileStats> {
+    let points = executor.query(
+        path.parent().unwrap().file_name().unwrap().to_str().unwrap(),
         from_ts,
-        to_ts
-    );
-    let mut stmt = conn.prepare(&sql)?;
-    let row = stmt.query_row([], |row| {
-        Ok(FileStats {
-            rows: row.get::<_, i64>("rows")? as usize,
-            min_ts: row.get::<_, i64>("min_ts")? as u64,
-            max_ts: row.get::<_, i64>("max_ts")? as u64,
-            points: 0,
-        })
-    })?;
+        to_ts,
+        &[],
+    )?;
+
+    let rows = points.len() as u64;
+    let min_ts = points.iter().map(|p| p.ts).min().unwrap_or(0);
+    let max_ts = points.iter().map(|p| p.ts).max().unwrap_or(0);
+
     Ok(FileStats {
-        points: row.rows,
-        ..row
+        rows,
+        points: rows,
+        min_ts,
+        max_ts,
     })
 }

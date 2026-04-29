@@ -1,12 +1,10 @@
-use std::collections::HashSet;
 use std::path::PathBuf;
 use std::time::Instant;
 use anyhow::Context;
 use chrono::{Datelike, Local, NaiveDate, TimeZone};
 use clap::Args;
-use duckdb::Connection;
 
-use crate::model::DataPoint;
+use crate::query::datafusion_executor::QueryExecutor as DfExecutor;
 
 #[derive(Debug, Clone, Args)]
 pub struct PerfArgs {
@@ -47,28 +45,12 @@ pub struct PerfArgs {
     pub warmup: usize,
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct PerfStats {
-    pub matched: usize,
-    pub min_ms: f64,
-    pub avg_ms: f64,
-    pub p95_ms: f64,
-    pub max_ms: f64,
-}
-
 pub fn run(args: PerfArgs) -> anyhow::Result<()> {
     if args.iterations == 0 {
         anyhow::bail!("--iterations must be > 0");
     }
 
     let (from_ts, to_ts) = resolve_time_range(&args)?;
-    let root = PathBuf::from(&args.root);
-    let parquet_pattern = format!(
-        "{}/{}/**/*.parquet",
-        root.display().to_string().replace("\\", "/"),
-        args.device_id
-    );
-    let param_filter = build_param_filter(&args.params);
 
     println!("perf_root: {}", args.root);
     println!("perf_device_id: {}", args.device_id);
@@ -79,15 +61,17 @@ pub fn run(args: PerfArgs) -> anyhow::Result<()> {
     println!("perf_warmup: {}", args.warmup);
     println!("perf_iterations: {}", args.iterations);
 
+    let executor = DfExecutor::new(args.root.clone());
+
     for _ in 0..args.warmup {
-        let _ = run_query(&parquet_pattern, from_ts, to_ts, &param_filter, args.limit);
+        let _ = executor.query(&args.device_id, from_ts, to_ts, &args.params);
     }
 
     let mut costs_ms = Vec::with_capacity(args.iterations);
     let mut matched = 0usize;
     for _ in 0..args.iterations {
         let begin = Instant::now();
-        matched = run_query(&parquet_pattern, from_ts, to_ts, &param_filter, args.limit)?;
+        matched = executor.query(&args.device_id, from_ts, to_ts, &args.params)?.len();
         let elapsed = begin.elapsed();
         costs_ms.push(elapsed.as_secs_f64() * 1000.0);
     }
@@ -114,26 +98,6 @@ pub fn run(args: PerfArgs) -> anyhow::Result<()> {
     println!("perf_max_ms: {:.3}", max_ms);
 
     Ok(())
-}
-
-fn run_query(parquet_pattern: &str, from_ts: u64, to_ts: u64, param_filter: &str, limit: usize) -> anyhow::Result<usize> {
-    let sql = format!(
-        "SELECT ts, param_id, value FROM read_parquet('{}', hive_partitioning=1) WHERE ts >= {} AND ts <= {} {} ORDER BY ts LIMIT {}",
-        parquet_pattern,
-        from_ts,
-        to_ts,
-        param_filter,
-        limit
-    );
-
-    let conn = Connection::open_in_memory()?;
-    let mut stmt = conn.prepare(&sql)?;
-    let mut rows = stmt.query([])?;
-    let mut count = 0;
-    while rows.next()?.is_some() {
-        count += 1;
-    }
-    Ok(count)
 }
 
 fn resolve_time_range(args: &PerfArgs) -> anyhow::Result<(u64, u64)> {
@@ -196,16 +160,4 @@ fn now_ts() -> u64 {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs())
         .unwrap_or(0)
-}
-
-fn build_param_filter(params: &[String]) -> String {
-    if params.is_empty() {
-        return String::new();
-    }
-    let param_list = params
-        .iter()
-        .map(|p| format!("'{}'", p.trim().to_uppercase()))
-        .collect::<Vec<_>>()
-        .join(",");
-    format!("AND param_id IN ({})", param_list)
 }

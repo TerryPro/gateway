@@ -1,14 +1,13 @@
-use std::collections::HashSet;
 use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
 use anyhow::Context;
 use chrono::{Datelike, Local, NaiveDate, TimeZone};
 use clap::{Args, ValueEnum};
-use duckdb::Connection;
 use serde::Serialize;
 
 use crate::model::DataPoint;
+use crate::query::datafusion_executor::QueryExecutor as DfExecutor;
 
 #[derive(Debug, Clone, ValueEnum)]
 pub enum ExportFormat {
@@ -67,38 +66,19 @@ pub struct FlatRow {
 
 pub fn run(args: ExportArgs) -> anyhow::Result<()> {
     let (from_ts, to_ts) = resolve_time_range(&args)?;
-    let root = PathBuf::from(&args.root);
-    let parquet_pattern = format!(
-        "{}/{}/**/*.parquet",
-        root.display().to_string().replace("\\", "/"),
-        args.device_id
-    );
 
-    let param_filter = build_param_filter(&args.params)?;
-    let sql = format!(
-        "SELECT ts, param_id, value FROM read_parquet('{}', hive_partitioning=1) WHERE ts >= {} AND ts <= {} {} ORDER BY ts LIMIT {}",
-        parquet_pattern,
-        from_ts,
-        to_ts,
-        param_filter,
-        args.limit
-    );
+    let executor = DfExecutor::new(args.root.clone());
+    let results = executor.query(&args.device_id, from_ts, to_ts, &args.params)?;
 
-    let conn = Connection::open_in_memory()?;
-    let mut stmt = conn.prepare(&sql)?;
-    let mut rows = stmt.query([])?;
-
-    let mut results = Vec::new();
-    while let Some(row) = rows.next()? {
-        let ts: u64 = row.get(0)?;
-        let param_id: String = row.get(1)?;
-        let value: f64 = row.get(2)?;
-        results.push(FlatRow {
-            ts,
-            param_id,
-            value: value as f32,
-        });
-    }
+    let results: Vec<FlatRow> = results
+        .into_iter()
+        .take(args.limit)
+        .map(|p| FlatRow {
+            ts: p.ts,
+            param_id: p.param_id,
+            value: p.value,
+        })
+        .collect();
 
     let exported_count = results.len();
     let mut file = File::create(&args.out)
@@ -173,18 +153,6 @@ fn now_ts() -> u64 {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs())
         .unwrap_or(0)
-}
-
-fn build_param_filter(params: &[String]) -> anyhow::Result<String> {
-    if params.is_empty() {
-        return Ok(String::new());
-    }
-    let param_list = params
-        .iter()
-        .map(|p| format!("'{}'", p.trim().to_uppercase()))
-        .collect::<Vec<_>>()
-        .join(",");
-    Ok(format!("AND param_id IN ({})", param_list))
 }
 
 fn write_csv(file: &mut File, rows: &[FlatRow]) -> anyhow::Result<()> {

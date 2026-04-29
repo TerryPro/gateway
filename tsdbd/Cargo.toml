@@ -8,7 +8,7 @@ anyhow = "1"
 axum = { version = "0.8", features = ["json"] }
 chrono = { version = "0.4", features = ["clock", "serde"] }
 clap = { version = "4", features = ["derive"] }
-duckdb = { version = "1.2.2", features = ["bundled", "vtab-arrow"] }
+datafusion = "53"
 rumqttc = "0.24"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

@@ -1,3 +1,3 @@
 pub mod executor;
 pub mod planner;
-pub mod duckdb_executor;
+pub mod datafusion_executor;

@@ -75,13 +75,12 @@ async fn query_handler(
         })
 }
 
-/// 历史数据查询接口：使用 DuckDB 查询 Parquet 文件。
+/// 历史数据查询接口：使用 DataFusion 查询 Parquet 文件。
 async fn query_history_handler(
     State(state): State<Arc<ApiState>>,
     Json(req): Json<crate::model::QueryRequest>,
 ) -> Result<Json<crate::model::QueryResponse>, axum::http::StatusCode> {
-    // TODO: 使用 DuckDB 查询历史数据
-    // 当前先返回内存查询结果
+    // 使用 DataFusion 查询历史数据
     state
         .query
         .execute(req)

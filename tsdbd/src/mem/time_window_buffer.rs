@@ -176,7 +176,7 @@ impl TimeWindowBuffer {
 
     /// 将内存数据转换为 Arrow RecordBatch。
     ///
-    /// 用于与 DuckDB 集成，实现统一查询。
+    /// 用于与 DataFusion 集成，实现统一查询。
     pub fn to_record_batch(
         &self,
         device_id: &str,
